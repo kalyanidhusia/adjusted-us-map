@@ -39,7 +39,7 @@ function drawMap(geojson, colorScale = d3.scaleSequential().interpolator(d3.inte
     })
     .attr("stroke", "#333")
     .on("mouseover", (event, d) => {
-      const key = d.properties.state || d.properties.state_name;
+      const key = (d.properties.state || d.properties.state_name || "").trim().toUpperCase();
       const val = dataMap.get(key);
       tooltip.style("opacity", 1)
         .html(`<strong>${key}</strong><br>${val !== undefined ? val : "N/A"}`)
@@ -103,12 +103,14 @@ document.getElementById("csv-file").addEventListener("change", e => {
         const key = row.state || row.state_name;
         const val = row[numericCol];
         if (key && val) {
-          dataMap.set(key.trim(), +val);
+          dataMap.set(key.trim().toUpperCase(), +val);
         }
       });
 
       const selectedScheme = document.getElementById("color-scheme").value;
       const scale = d3.scaleSequential().interpolator(d3[selectedScheme]);
+      console.log("GeoJSON properties:", geoData.features[0].properties);
+      console.log("CSV rows keys:", Array.from(dataMap.keys()));
       drawMap(geoData, scale, dataMap);
     }
   });
