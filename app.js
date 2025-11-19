@@ -1,90 +1,94 @@
-// app.js — Load GeoJSON, parse CSV, and render colored US map
+let map = L.map('map').setView([37.8, -96], 4);
 
-// Global vars
-let uploadedData = null;
-let geojsonData = null;
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
 
-const width = 960;
-const height = 600;
-
-const svg = d3.select("#map")
-  .append("svg")
-  .attr("width", width)
-  .attr("height", height);
-
-const projection = d3.geoAlbersUsa().scale(1000).translate([width / 2, height / 2]);
-const path = d3.geoPath().projection(projection);
-
-// Color scale
-const colorScale = d3.scaleSequential(d3.interpolateBlues).domain([0, 500]);
-
-// Tooltip
-const tooltip = d3.select("#tooltip");
+let geojsonLayer;
 
 // Load GeoJSON
-d3.json("adjusted_us_states_combined.geojson").then(geoData => {
-  geojsonData = geoData;
-
-  // File upload handler
-  document.getElementById("file-input").addEventListener("change", function (event) {
-    const file = event.target.files[0];
-    if (file) {
-      Papa.parse(file, {
-        header: true,
-        dynamicTyping: true,
-        complete: function (results) {
-          uploadedData = results.data;
-          drawMap();
-        },
-        error: function (error) {
-          alert("Error parsing CSV: " + error.message);
-        }
-      });
-    }
+fetch('adjusted_us_states_combined.geojson')
+  .then(res => res.json())
+  .then(geoData => {
+    geojsonLayer = L.geoJson(geoData, {
+      style: {
+        color: "#444",
+        weight: 1,
+        fillColor: "#e0e0e0",
+        fillOpacity: 0.5
+      }
+    }).addTo(map);
   });
 
-  // Initial draw if no file uploaded
-  drawMap();
+// CSV upload handler
+document.getElementById('csvInput').addEventListener('change', function (e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  Papa.parse(file, {
+    header: true,
+    dynamicTyping: true,
+    complete: function(results) {
+      const data = results.data;
+      const valueMap = {};
+      data.forEach(row => {
+        if (row.state && row.plotnumber !== undefined) {
+          valueMap[row.state.trim().toUpperCase()] = row.plotnumber;
+        }
+      });
+
+      // Re-color the map based on uploaded values
+      fetch('adjusted_us_states_combined.geojson')
+        .then(res => res.json())
+        .then(geoData => {
+          if (geojsonLayer) {
+            map.removeLayer(geojsonLayer);
+          }
+
+          geojsonLayer = L.geoJson(geoData, {
+            style: feature => {
+              const val = valueMap[feature.properties.state_abbv];
+              const fill = val ? getColor(val) : "#f0f0f0";
+              return {
+                weight: 1,
+                color: "#555",
+                fillColor: fill,
+                fillOpacity: 0.7
+              };
+            },
+            onEachFeature: function (feature, layer) {
+              const abbr = feature.properties.state_abbv;
+              const val = valueMap[abbr];
+              layer.bindPopup(`<b>${abbr}</b><br>${val !== undefined ? val : 'No data'}`);
+            }
+          }).addTo(map);
+
+          document.getElementById('downloadBtn').style.display = 'inline-block';
+        });
+    }
+  });
 });
 
-function drawMap() {
-  svg.selectAll("*").remove();
-
-  // Merge uploaded CSV with GeoJSON
-  if (uploadedData && uploadedData.length > 0) {
-    const csvMap = new Map();
-    uploadedData.forEach(d => {
-      if (d.state && d.plotnumber) {
-        csvMap.set(d.state.trim().toUpperCase(), +d.plotnumber);
-      }
-    });
-
-    geojsonData.features.forEach(f => {
-      const abbrev = f.properties.state_abbv?.toUpperCase();
-      f.properties.plotnumber = abbrev && csvMap.has(abbrev) ? csvMap.get(abbrev) : 0;
-    });
-  } else {
-    geojsonData.features.forEach(f => f.properties.plotnumber = 0);
-  }
-
-  svg.selectAll("path")
-    .data(geojsonData.features)
-    .enter()
-    .append("path")
-    .attr("d", path)
-    .attr("fill", d => {
-      const value = d.properties.plotnumber;
-      return value > 0 ? colorScale(value) : "#eee";
-    })
-    .attr("stroke", "#333")
-    .attr("stroke-width", 0.5)
-    .on("mouseover", function (event, d) {
-      tooltip.transition().duration(200).style("opacity", 0.9);
-      tooltip.html(`<strong>${d.properties.state_name}</strong><br>Plot value: ${d.properties.plotnumber}`)
-        .style("left", (event.pageX + 10) + "px")
-        .style("top", (event.pageY - 28) + "px");
-    })
-    .on("mouseout", function () {
-      tooltip.transition().duration(300).style("opacity", 0);
-    });
+// Color scale function
+function getColor(d) {
+  return d > 400 ? '#08306b' :
+         d > 300 ? '#2171b5' :
+         d > 200 ? '#6baed6' :
+         d > 100 ? '#c6dbef' :
+                   '#deebf7';
 }
+
+// PNG download
+document.getElementById('downloadBtn').addEventListener('click', function() {
+  leafletImage(map, function(err, canvas) {
+    if (err) {
+      alert("Error exporting image.");
+      return;
+    }
+    const img = canvas.toDataURL("image/png");
+    const link = document.createElement('a');
+    link.download = "us_map_plot.png";
+    link.href = img;
+    link.click();
+  });
+});
