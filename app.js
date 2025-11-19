@@ -13,6 +13,7 @@ const tooltip = d3.select("#tooltip");
 
 let geoData;
 
+// Load GeoJSON
 d3.json("adjusted_us_states_combined.geojson").then(geojson => {
   geoData = geojson;
   drawMap(geojson);
@@ -23,6 +24,7 @@ function drawMap(geojson, colorScale = d3.scaleSequential().interpolator(d3.inte
 
   const values = Array.from(dataMap.values());
   const extent = d3.extent(values);
+
   if (!isNaN(extent[0]) && !isNaN(extent[1])) {
     colorScale.domain(extent);
   }
@@ -32,15 +34,25 @@ function drawMap(geojson, colorScale = d3.scaleSequential().interpolator(d3.inte
     .join("path")
     .attr("d", path)
     .attr("fill", d => {
-      const props = d.properties;
-      const key = props.state || props.state_name;
+      const key = (
+        d.properties.STUSPS ||
+        d.properties.NAME ||
+        ""
+      ).trim().toUpperCase();
+
       const val = dataMap.get(key);
       return val !== undefined ? colorScale(val) : "#eee";
     })
     .attr("stroke", "#333")
     .on("mouseover", (event, d) => {
-      const key = (d.properties.NAME || d.properties.STUSPS || "").trim().toUpperCase();
+      const key = (
+        d.properties.STUSPS ||
+        d.properties.NAME ||
+        ""
+      ).trim().toUpperCase();
+
       const val = dataMap.get(key);
+
       tooltip.style("opacity", 1)
         .html(`<strong>${key}</strong><br>${val !== undefined ? val : "N/A"}`)
         .style("left", (event.pageX + 10) + "px")
@@ -59,19 +71,24 @@ function drawLegend(colorScale, extent) {
   canvas.width = legendWidth;
   canvas.height = 1;
   const context = canvas.getContext("2d");
+
   for (let i = 0; i < legendWidth; ++i) {
     context.fillStyle = colorScale(extent[0] + (extent[1] - extent[0]) * i / legendWidth);
     context.fillRect(i, 0, 1, 1);
   }
 
-  const legendSvg = svg.append("g").attr("id", "legend-svg").attr("transform", `translate(${width - 340},${height - 40})`);
+  const legendSvg = svg.append("g")
+    .attr("id", "legend-svg")
+    .attr("transform", `translate(${width - 340},${height - 50})`);
+
   legendSvg.append("image")
     .attr("xlink:href", canvas.toDataURL())
     .attr("width", legendWidth)
     .attr("height", legendHeight);
 
   const scale = d3.scaleLinear().domain(extent).range([0, legendWidth]);
-  const axis = d3.axisBottom(scale).ticks(5).tickSize(6);
+  const axis = d3.axisBottom(scale).ticks(5);
+
   legendSvg.append("g")
     .attr("transform", `translate(0,${legendHeight})`)
     .call(axis)
@@ -83,6 +100,7 @@ function drawLegend(colorScale, extent) {
     .text("Uploaded Data Value");
 }
 
+// Handle CSV upload
 document.getElementById("csv-file").addEventListener("change", e => {
   const file = e.target.files[0];
   if (!file) return;
@@ -94,14 +112,22 @@ document.getElementById("csv-file").addEventListener("change", e => {
       const rows = results.data;
       const dataMap = new Map();
 
-      // Find numeric column
+      // Detect numeric column
       const numericCol = Object.keys(rows[0]).find(col =>
         !isNaN(parseFloat(rows[0][col])) && isFinite(rows[0][col])
       );
 
       rows.forEach(row => {
-        const key = row.state || row.state_name;
+        const key = (
+          row.state ||
+          row.State ||
+          row.state_name ||
+          row.State_Name ||
+          row.NAME
+        );
+
         const val = row[numericCol];
+
         if (key && val) {
           dataMap.set(key.trim().toUpperCase(), +val);
         }
@@ -109,13 +135,13 @@ document.getElementById("csv-file").addEventListener("change", e => {
 
       const selectedScheme = document.getElementById("color-scheme").value;
       const scale = d3.scaleSequential().interpolator(d3[selectedScheme]);
-      console.log("GeoJSON properties:", geoData.features[0].properties);
-      console.log("CSV rows keys:", Array.from(dataMap.keys()));
+
       drawMap(geoData, scale, dataMap);
     }
   });
 });
 
+// PNG Download
 function downloadMap() {
   saveSvgAsPng(document.querySelector("svg"), "adjusted_us_map.png", { scale: 3 });
 }
