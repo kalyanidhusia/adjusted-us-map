@@ -1,24 +1,49 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <title>Adjusted US Map Plotter</title>
   <script src="https://d3js.org/d3.v7.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/save-svg-as-png@1.4.17/lib/saveSvgAsPng.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/save-svg-as-png/1.4.17/saveSvgAsPng.min.js"></script>
   <style>
-    body { font-family: sans-serif; padding: 1rem; background: #f9f9f9; }
-    h1 { margin-bottom: 0.5em; }
-    svg { background: white; border: 1px solid #ccc; }
-    #legend { margin-top: 1em; }
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+    #map-container {
+      margin-top: 20px;
+    }
+    #tooltip {
+      position: absolute;
+      padding: 5px 10px;
+      background: rgba(0, 0, 0, 0.7);
+      color: #fff;
+      border-radius: 4px;
+      pointer-events: none;
+      font-size: 14px;
+      opacity: 0;
+    }
+    #legend-svg text {
+      font-size: 12px;
+    }
   </style>
 </head>
 <body>
   <h1>Adjusted US Map Plotter</h1>
   <p>Upload a CSV file with either <code>state</code> (abbr) or <code>state_name</code> column, and one numeric column.</p>
-  <input type="file" id="csv-file" accept=".csv" />
+  <input type="file" id="csv-file">
+  <select id="color-scheme">
+    <option value="interpolateBlues">Blues</option>
+    <option value="interpolateReds">Reds</option>
+    <option value="interpolateGreens">Greens</option>
+    <option value="interpolateViridis">Viridis</option>
+    <option value="interpolateInferno">Inferno</option>
+    <option value="interpolateMagma">Magma</option>
+  </select>
   <button onclick="downloadMap()">Download Map as PNG</button>
   <div id="map-container"></div>
+  <div id="tooltip"></div>
   <script src="app.js"></script>
 </body>
 </html>
