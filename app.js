@@ -1,80 +1,127 @@
-const map = L.map('map').setView([37.8, -96], 4);
+const stateNameToAbbv = {
+  "Alabama": "AL", "Alaska": "AK", "Arizona": "AZ", "Arkansas": "AR",
+  "California": "CA", "Colorado": "CO", "Connecticut": "CT", "Delaware": "DE",
+  "Florida": "FL", "Georgia": "GA", "Hawaii": "HI", "Idaho": "ID", "Illinois": "IL",
+  "Indiana": "IN", "Iowa": "IA", "Kansas": "KS", "Kentucky": "KY", "Louisiana": "LA",
+  "Maine": "ME", "Maryland": "MD", "Massachusetts": "MA", "Michigan": "MI",
+  "Minnesota": "MN", "Mississippi": "MS", "Missouri": "MO", "Montana": "MT",
+  "Nebraska": "NE", "Nevada": "NV", "New Hampshire": "NH", "New Jersey": "NJ",
+  "New Mexico": "NM", "New York": "NY", "North Carolina": "NC", "North Dakota": "ND",
+  "Ohio": "OH", "Oklahoma": "OK", "Oregon": "OR", "Pennsylvania": "PA",
+  "Rhode Island": "RI", "South Carolina": "SC", "South Dakota": "SD", "Tennessee": "TN",
+  "Texas": "TX", "Utah": "UT", "Vermont": "VT", "Virginia": "VA", "Washington": "WA",
+  "West Virginia": "WV", "Wisconsin": "WI", "Wyoming": "WY", "District of Columbia": "DC"
+};
 
-// Add tile layer (optional, since we're only showing borders)
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  minZoom: 3,
-  maxZoom: 7,
-  attribution: '© OpenStreetMap contributors'
-}).addTo(map);
+let geojson;
+d3.json("adjusted_us_states_combined.geojson").then(g => {
+  geojson = g;
+});
 
-let geojsonLayer;
-let stateData = {};
+// Draw map
+async function drawMap(dataByAbbv) {
+  const width = 1000, height = 600;
+  d3.select("#map-container").html("");
 
-function getColor(d) {
-  return d > 400 ? '#084594' :
-         d > 300 ? '#2171b5' :
-         d > 200 ? '#4292c6' :
-         d > 100 ? '#6baed6' :
-         d > 0   ? '#9ecae1' :
-                   '#f0f0f0';
+  const svg = d3.select("#map-container")
+    .append("svg")
+    .attr("id", "map")
+    .attr("width", width)
+    .attr("height", height);
+
+  const projection = d3.geoIdentity().reflectY(true).fitSize([width, height], geojson);
+  const path = d3.geoPath().projection(projection);
+
+  const values = Object.values(dataByAbbv);
+  const color = d3.scaleSequential()
+    .domain([d3.min(values), d3.max(values)])
+    .interpolator(d3.interpolateBlues);
+
+  svg.append("g")
+    .selectAll("path")
+    .data(geojson.features)
+    .join("path")
+    .attr("d", path)
+    .attr("fill", d => {
+      const abbv = d.properties.state_abbv;
+      return dataByAbbv[abbv] != null ? color(dataByAbbv[abbv]) : "#eee";
+    })
+    .attr("stroke", "#333")
+    .attr("stroke-width", 0.5);
+
+  // Legend
+  const legend = svg.append("g")
+    .attr("transform", `translate(${width - 250},20)`);
+
+  const legendScale = d3.scaleLinear()
+    .domain(color.domain())
+    .range([0, 200]);
+
+  const legendAxis = d3.axisRight(legendScale).ticks(6);
+
+  const legendGradient = svg.append("defs")
+    .append("linearGradient")
+    .attr("id", "legend-gradient")
+    .attr("x1", "0%").attr("y1", "100%")
+    .attr("x2", "0%").attr("y2", "0%");
+
+  legendGradient.append("stop")
+    .attr("offset", "0%").attr("stop-color", color.range()[0]);
+  legendGradient.append("stop")
+    .attr("offset", "100%").attr("stop-color", color.range()[1]);
+
+  legend.append("rect")
+    .attr("width", 15)
+    .attr("height", 200)
+    .style("fill", "url(#legend-gradient)");
+
+  legend.append("g")
+    .attr("transform", "translate(15,0)")
+    .call(legendAxis);
 }
 
-function style(feature) {
-  const value = stateData[feature.properties.state_abbv] || 0;
-  return {
-    fillColor: getColor(value),
-    weight: 1,
-    opacity: 1,
-    color: 'white',
-    fillOpacity: 0.8
-  };
-}
-
-// Load GeoJSON
-fetch('adjusted_us_states_combined.geojson')
-  .then(res => res.json())
-  .then(data => {
-    geojsonLayer = L.geoJson(data, {
-      style: style,
-      onEachFeature: function (feature, layer) {
-        const abbv = feature.properties.state_abbv;
-        layer.bindPopup(`${abbv}: ${stateData[abbv] || 0}`);
-      }
-    }).addTo(map);
-  });
-
-// Handle CSV upload
-document.getElementById('csvFile').addEventListener('change', function (e) {
+// CSV upload handler
+document.getElementById("csv-file").addEventListener("change", function (e) {
   const file = e.target.files[0];
+  if (!file) return;
+
   Papa.parse(file, {
     header: true,
+    dynamicTyping: true,
     complete: function (results) {
-      results.data.forEach(row => {
-        const state = row.state?.trim().toUpperCase();
-        const value = parseFloat(row.plotnumber);
-        if (state && !isNaN(value)) {
-          stateData[state] = value;
+      const data = results.data;
+      let keyCol = null, valueCol = null;
+
+      const headers = results.meta.fields.map(h => h.toLowerCase());
+      if (headers.includes("state")) keyCol = "state";
+      else if (headers.includes("state_name")) keyCol = "state_name";
+      else return alert("Missing 'state' or 'state_name' column.");
+
+      valueCol = headers.find(h => h !== keyCol);
+      if (!valueCol) return alert("Could not find value column.");
+
+      const dataByAbbv = {};
+
+      data.forEach(row => {
+        let abbv = null;
+        if (keyCol === "state") {
+          abbv = row[keyCol]?.toString().trim().toUpperCase();
+        } else if (keyCol === "state_name") {
+          const name = row[keyCol]?.toString().trim();
+          abbv = stateNameToAbbv[name];
+        }
+
+        const value = parseFloat(row[valueCol]);
+        if (abbv && !isNaN(value)) {
+          dataByAbbv[abbv] = value;
         }
       });
 
-      // Re-style map with updated data
-      if (geojsonLayer) {
-        geojsonLayer.setStyle(style);
-        geojsonLayer.eachLayer(layer => {
-          const abbv = layer.feature.properties.state_abbv;
-          layer.setPopupContent(`${abbv}: ${stateData[abbv] || 0}`);
-        });
-      }
+      drawMap(dataByAbbv);
     }
   });
 });
 
-// Export as PNG
-document.getElementById('downloadBtn').addEventListener('click', () => {
-  domtoimage.toBlob(document.getElementById('map')).then(function (blob) {
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'us_map.png';
-    a.click();
-  });
-});
+function downloadMap() {
+  saveSvgAsPng(document.getElementById("map"), "us_map_plot.png", { scale: 2 });
+}
