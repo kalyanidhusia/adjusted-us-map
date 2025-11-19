@@ -13,6 +13,7 @@
     }
     #map-container {
       margin-top: 20px;
+      position: relative;
     }
     #tooltip {
       position: absolute;
@@ -23,16 +24,25 @@
       pointer-events: none;
       font-size: 14px;
       opacity: 0;
+      z-index: 10;
     }
     #legend-svg text {
       font-size: 12px;
+    }
+    select, input[type="file"], button {
+      margin-right: 10px;
+      margin-top: 10px;
     }
   </style>
 </head>
 <body>
   <h1>Adjusted US Map Plotter</h1>
-  <p>Upload a CSV file with either <code>state</code> (abbr) or <code>state_name</code> column, and one numeric column.</p>
+  <p>
+    Upload a CSV file with either a <code>state</code> (2-letter code) or <code>state_name</code> (full name), and one <strong>numeric</strong> column to color the map.
+  </p>
+
   <input type="file" id="csv-file">
+  <label for="color-scheme">Color Scheme:</label>
   <select id="color-scheme">
     <option value="interpolateBlues">Blues</option>
     <option value="interpolateReds">Reds</option>
@@ -42,8 +52,10 @@
     <option value="interpolateMagma">Magma</option>
   </select>
   <button onclick="downloadMap()">Download Map as PNG</button>
+
   <div id="map-container"></div>
   <div id="tooltip"></div>
+
   <script src="app.js"></script>
 </body>
 </html>
