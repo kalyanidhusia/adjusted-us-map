@@ -34,22 +34,13 @@ function drawMap(geojson, colorScale = d3.scaleSequential().interpolator(d3.inte
     .join("path")
     .attr("d", path)
     .attr("fill", d => {
-      const key = (
-        d.properties.STUSPS ||
-        d.properties.NAME ||
-        ""
-      ).trim().toUpperCase();
-
+      const key = (d.properties.state_abbv || d.properties.state_name || "").trim().toUpperCase();
       const val = dataMap.get(key);
       return val !== undefined ? colorScale(val) : "#eee";
     })
     .attr("stroke", "#333")
     .on("mouseover", (event, d) => {
-      const key = (
-        d.properties.STUSPS ||
-        d.properties.NAME ||
-        ""
-      ).trim().toUpperCase();
+      const key = (d.properties.state_abbv || d.properties.state_name || "").trim().toUpperCase();
 
       const val = dataMap.get(key);
 
@@ -121,10 +112,13 @@ document.getElementById("csv-file").addEventListener("change", e => {
         const key = (
           row.state ||
           row.State ||
+          row.state_abbv ||
           row.state_name ||
           row.State_Name ||
-          row.NAME
-        );
+          row.NAME ||
+          ""
+        ).trim().toUpperCase();
+
 
         const val = row[numericCol];
 
