@@ -39,7 +39,7 @@ function drawMap(geojson, colorScale = d3.scaleSequential().interpolator(d3.inte
     })
     .attr("stroke", "#333")
     .on("mouseover", (event, d) => {
-      const key = (d.properties.state || d.properties.state_name || "").trim().toUpperCase();
+      const key = (d.properties.NAME || d.properties.STUSPS || "").trim().toUpperCase();
       const val = dataMap.get(key);
       tooltip.style("opacity", 1)
         .html(`<strong>${key}</strong><br>${val !== undefined ? val : "N/A"}`)
