@@ -1,4 +1,39 @@
-<!-- index.html -->
-<input type="file" id="fileInput" accept=".geojson,.csv" />
-<div id="map"></div>
-<script src="app.js"></script>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Adjusted US Map Plotter</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://unpkg.com/topojson@3"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+  <style>
+    body { font-family: sans-serif; margin: 20px; }
+    #map { width: 100%; height: 600px; }
+    .tooltip {
+      position: absolute;
+      padding: 6px 10px;
+      background: rgba(0, 0, 0, 0.75);
+      color: white;
+      pointer-events: none;
+      font-size: 14px;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Adjusted US Map Plotter</h1>
+  <p>Upload a CSV with state-level values to color the map.</p>
+  <p><strong>Required CSV format:</strong></p>
+  <pre>
+state,plotnumber
+AL,300
+AR,250
+MI,410
+TX,390
+  </pre>
+
+  <input type="file" id="file-input" accept=".csv" />
+  <div id="map"></div>
+  <script src="app.js"></script>
+</body>
+</html>
