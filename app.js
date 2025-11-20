@@ -1,18 +1,9 @@
 const width = 960, height = 600;
 const container = d3.select("#map-container");
-if (container.empty()) {
-  console.error("Map container (#map-container) not found.");
-} else {
-  // Create SVG once
-  //const svg = container.append("svg")
-  svg = container.append("svg");
-    .attr("width", width)
-    .attr("height", height);
-}
 
-// (If svg defined globally)
-// You may need to declare svg outside so drawMap uses it
-let svgElem = d3.select("#map-container svg");
+const svg = container.append("svg")
+  .attr("width", width)
+  .attr("height", height);
 
 const projection = d3.geoAlbersUsa()
   .translate([width / 2, height / 2])
@@ -23,7 +14,7 @@ const tooltip = d3.select("#tooltip");
 
 let geoData;
 
-// Load GeoJSON
+// Load GeoJSON and draw initial map
 d3.json("adjusted_us_states_combined.geojson")
   .then(geojson => {
     geoData = geojson;
@@ -33,62 +24,41 @@ d3.json("adjusted_us_states_combined.geojson")
     console.error("GeoJSON load failed:", err);
   });
 
-function drawMap(
-    geojson,
-    colorScale = d3.scaleSequential().interpolator(d3.interpolateBlues),
-    dataMap = new Map()
-) {
-    const svgElem = d3.select("#map-container svg");
+function drawMap(geojson, colorScale = d3.scaleSequential().interpolator(d3.interpolateBlues), dataMap = new Map()) {
+  svg.selectAll("path").remove();
+  svg.selectAll("text.state-label").remove();
 
-    if (svgElem.empty()) {
-        console.error("SVG element not found — map cannot be drawn.");
-        return;
-    }
+  const values = Array.from(dataMap.values());
+  let extent = d3.extent(values);
 
-    // Clear previous shapes
-    svgElem.selectAll("path").remove();
+  if (!values.length || isNaN(extent[0]) || isNaN(extent[1])) {
+    extent = [0, 1];
+  } else {
+    colorScale.domain(extent);
+  }
 
-    // Compute data range ONLY if data exists
-    const values = Array.from(dataMap.values());
-    let extent = d3.extent(values);
+  svg.selectAll("path")
+    .data(geojson.features)
+    .join("path")
+    .attr("d", path)
+    .attr("fill", d => {
+      const key = (d.properties.state_abbv || d.properties.state_name || "").trim().toUpperCase();
+      const val = dataMap.get(key);
+      return val !== undefined ? colorScale(val) : "#eee";
+    })
+    .attr("stroke", "#333")
+    .on("mouseover", (event, d) => {
+      const key = (d.properties.state_abbv || d.properties.state_name || "").trim().toUpperCase();
+      const val = dataMap.get(key);
+      tooltip.style("opacity", 1)
+        .html(`<strong>${key}</strong><br>${val !== undefined ? val : "N/A"}`)
+        .style("left", (event.pageX + 10) + "px")
+        .style("top", (event.pageY - 20) + "px");
+    })
+    .on("mouseout", () => tooltip.style("opacity", 0));
 
-    // If no CSV uploaded yet → provide a safe default extent
-    if (!values.length || isNaN(extent[0]) || isNaN(extent[1])) {
-        extent = [0, 1];  // Safe dummy range
-    } else {
-        colorScale.domain(extent);
-    }
-
-    // ---- Draw map paths ----
-    svgElem.selectAll("path")
-        .data(geojson.features)
-        .join("path")
-        .attr("d", path)
-        .attr("fill", d => {
-            const props = d.properties;
-            const key = (props.state_abbv || props.state_name || "")
-                .trim()
-                .toUpperCase();
-
-            const val = dataMap.get(key);
-            return val !== undefined ? colorScale(val) : "#eee";
-        })
-        .attr("stroke", "#333")
-        .on("mouseover", (event, d) => {
-            const key = (d.properties.state_abbv || d.properties.state_name || "")
-                .trim()
-                .toUpperCase();
-            const val = dataMap.get(key);
-
-            tooltip.style("opacity", 1)
-                .html(`<strong>${key}</strong><br>${val !== undefined ? val : "N/A"}`)
-                .style("left", (event.pageX + 10) + "px")
-                .style("top", (event.pageY - 20) + "px");
-        })
-        .on("mouseout", () => tooltip.style("opacity", 0));
-
-    drawLegend(colorScale, extent);
-    drawLabels(geojson);
+  drawLegend(colorScale, extent);
+  drawLabels(geojson);
 }
 
 function drawLegend(colorScale, extent) {
@@ -129,7 +99,17 @@ function drawLegend(colorScale, extent) {
 }
 
 function drawLabels(geojson) {
-  svg.selectAll("text.state-label").remove();
+  const offsets = {
+    "DC": [12, -12],
+    "RI": [10, -10],
+    "CT": [10, -10],
+    "DE": [10, -5],
+    "MD": [10, 5],
+    "NJ": [10, -5],
+    "MA": [10, -10],
+    "VT": [10, -5],
+    "NH": [10, -5]
+  };
 
   svg.selectAll("text.state-label")
     .data(geojson.features)
@@ -137,20 +117,9 @@ function drawLabels(geojson) {
     .append("text")
     .attr("class", "state-label")
     .attr("transform", d => {
-      const centroid = path.centroid(d);
-      const offsets = {
-        "DC": [12, -12],
-        "RI": [10, -10],
-        "CT": [10, -10],
-        "DE": [10, -5],
-        "MD": [10, 5],
-        "NJ": [10, -5],
-        "MA": [10, -10],
-        "VT": [10, -5],
-        "NH": [10, -5]
-      };
+      const [x, y] = path.centroid(d);
       const [dx, dy] = offsets[d.properties.state_abbv] || [0, 0];
-      return `translate(${centroid[0] + dx}, ${centroid[1] + dy})`;
+      return `translate(${x + dx}, ${y + dy})`;
     })
     .attr("dy", ".35em")
     .attr("text-anchor", "middle")
@@ -160,7 +129,7 @@ function drawLabels(geojson) {
     .style("pointer-events", "none");
 }
 
-// Handle CSV upload
+// CSV Upload Handler
 document.getElementById("csv-file").addEventListener("change", e => {
   const file = e.target.files[0];
   if (!file) return;
@@ -172,7 +141,6 @@ document.getElementById("csv-file").addEventListener("change", e => {
       const rows = results.data;
       const dataMap = new Map();
 
-      // Detect numeric column
       const numericCol = Object.keys(rows[0]).find(col =>
         !isNaN(parseFloat(rows[0][col])) && isFinite(rows[0][col])
       );
@@ -188,11 +156,9 @@ document.getElementById("csv-file").addEventListener("change", e => {
           ""
         ).trim().toUpperCase();
 
-
         const val = row[numericCol];
-
         if (key && val) {
-          dataMap.set(key.trim().toUpperCase(), +val);
+          dataMap.set(key, +val);
         }
       });
 
@@ -206,5 +172,5 @@ document.getElementById("csv-file").addEventListener("change", e => {
 
 // PNG Download
 function downloadMap() {
-  saveSvgAsPng(document.querySelector("svg"), "adjusted_us_map.png", { scale: 3 });
+  saveSvgAsPng(document.querySelector("#map-container svg"), "adjusted_us_map.png", { scale: 3 });
 }
