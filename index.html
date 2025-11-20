@@ -53,7 +53,15 @@
   </select>
   <button onclick="downloadMap()">Download Map as PNG</button>
 
-  <div id="map-container"></div>
+  
+  <div id="map-container">
+    <svg id="map-svg" width="960" height="600">
+      <g id="states"></g>
+      <g id="labels"></g>
+      <g id="legend-svg"></g>
+    </svg>
+  </div>
+
   <div id="tooltip"></div>
 
   <script src="app.js"></script>
