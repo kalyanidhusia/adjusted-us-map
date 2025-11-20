@@ -4,7 +4,8 @@ if (container.empty()) {
   console.error("Map container (#map-container) not found.");
 } else {
   // Create SVG once
-  const svg = container.append("svg")
+  //const svg = container.append("svg")
+  svg = container.append("svg");
     .attr("width", width)
     .attr("height", height);
 }
@@ -150,7 +151,7 @@ function drawLabels(geojson) {
       };
       const [dx, dy] = offsets[d.properties.state_abbv] || [0, 0];
       return `translate(${centroid[0] + dx}, ${centroid[1] + dy})`;
-    });
+    })
     .attr("dy", ".35em")
     .attr("text-anchor", "middle")
     .text(d => d.properties.state_abbv)
