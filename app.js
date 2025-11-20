@@ -1,8 +1,17 @@
 const width = 960, height = 600;
-const svg = d3.select("#map-container")
-  .append("svg")
-  .attr("width", width)
-  .attr("height", height);
+const container = d3.select("#map-container");
+if (container.empty()) {
+  console.error("Map container (#map-container) not found.");
+} else {
+  // Create SVG once
+  const svg = container.append("svg")
+    .attr("width", width)
+    .attr("height", height);
+}
+
+// (If svg defined globally)
+// You may need to declare svg outside so drawMap uses it
+let svgElem = d3.select("#map-container svg");
 
 const projection = d3.geoAlbersUsa()
   .translate([width / 2, height / 2])
@@ -14,45 +23,71 @@ const tooltip = d3.select("#tooltip");
 let geoData;
 
 // Load GeoJSON
-d3.json("adjusted_us_states_combined.geojson").then(geojson => {
-  geoData = geojson;
-  drawMap(geojson);
-});
+d3.json("adjusted_us_states_combined.geojson")
+  .then(geojson => {
+    geoData = geojson;
+    drawMap(geojson);
+  })
+  .catch(err => {
+    console.error("GeoJSON load failed:", err);
+  });
 
-function drawMap(geojson, colorScale = d3.scaleSequential().interpolator(d3.interpolateBlues), dataMap = new Map()) {
-  svg.selectAll("path").remove();
+function drawMap(
+    geojson,
+    colorScale = d3.scaleSequential().interpolator(d3.interpolateBlues),
+    dataMap = new Map()
+) {
+    const svgElem = d3.select("#map-container svg");
 
-  const values = Array.from(dataMap.values());
-  const extent = d3.extent(values);
+    if (svgElem.empty()) {
+        console.error("SVG element not found — map cannot be drawn.");
+        return;
+    }
 
-  if (!isNaN(extent[0]) && !isNaN(extent[1])) {
-    colorScale.domain(extent);
-  }
+    // Clear previous shapes
+    svgElem.selectAll("path").remove();
 
-  svg.selectAll("path")
-    .data(geojson.features)
-    .join("path")
-    .attr("d", path)
-    .attr("fill", d => {
-      const key = (d.properties.state_abbv || d.properties.state_name || "").trim().toUpperCase();
-      const val = dataMap.get(key);
-      return val !== undefined ? colorScale(val) : "#eee";
-    })
-    .attr("stroke", "#333")
-    .on("mouseover", (event, d) => {
-      const key = (d.properties.state_abbv || d.properties.state_name || "").trim().toUpperCase();
+    // Compute data range ONLY if data exists
+    const values = Array.from(dataMap.values());
+    let extent = d3.extent(values);
 
-      const val = dataMap.get(key);
+    // If no CSV uploaded yet → provide a safe default extent
+    if (!values.length || isNaN(extent[0]) || isNaN(extent[1])) {
+        extent = [0, 1];  // Safe dummy range
+    } else {
+        colorScale.domain(extent);
+    }
 
-      tooltip.style("opacity", 1)
-        .html(`<strong>${key}</strong><br>${val !== undefined ? val : "N/A"}`)
-        .style("left", (event.pageX + 10) + "px")
-        .style("top", (event.pageY - 20) + "px");
-    })
-    .on("mouseout", () => tooltip.style("opacity", 0));
+    // ---- Draw map paths ----
+    svgElem.selectAll("path")
+        .data(geojson.features)
+        .join("path")
+        .attr("d", path)
+        .attr("fill", d => {
+            const props = d.properties;
+            const key = (props.state_abbv || props.state_name || "")
+                .trim()
+                .toUpperCase();
 
-  drawLegend(colorScale, extent);
-  drawLabels(geojson);
+            const val = dataMap.get(key);
+            return val !== undefined ? colorScale(val) : "#eee";
+        })
+        .attr("stroke", "#333")
+        .on("mouseover", (event, d) => {
+            const key = (d.properties.state_abbv || d.properties.state_name || "")
+                .trim()
+                .toUpperCase();
+            const val = dataMap.get(key);
+
+            tooltip.style("opacity", 1)
+                .html(`<strong>${key}</strong><br>${val !== undefined ? val : "N/A"}`)
+                .style("left", (event.pageX + 10) + "px")
+                .style("top", (event.pageY - 20) + "px");
+        })
+        .on("mouseout", () => tooltip.style("opacity", 0));
+
+    drawLegend(colorScale, extent);
+    drawLabels(geojson);
 }
 
 function drawLegend(colorScale, extent) {
