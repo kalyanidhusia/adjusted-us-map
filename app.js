@@ -52,6 +52,7 @@ function drawMap(geojson, colorScale = d3.scaleSequential().interpolator(d3.inte
     .on("mouseout", () => tooltip.style("opacity", 0));
 
   drawLegend(colorScale, extent);
+  drawLabels(geojson);
 }
 
 function drawLegend(colorScale, extent) {
@@ -89,6 +90,38 @@ function drawLegend(colorScale, extent) {
     .attr("fill", "black")
     .attr("text-anchor", "middle")
     .text("Uploaded Data Value");
+}
+
+function drawLabels(geojson) {
+  svg.selectAll("text.state-label").remove();
+
+  svg.selectAll("text.state-label")
+    .data(geojson.features)
+    .enter()
+    .append("text")
+    .attr("class", "state-label")
+    .attr("transform", d => {
+      const centroid = path.centroid(d);
+      const offsets = {
+        "DC": [12, -12],
+        "RI": [10, -10],
+        "CT": [10, -10],
+        "DE": [10, -5],
+        "MD": [10, 5],
+        "NJ": [10, -5],
+        "MA": [10, -10],
+        "VT": [10, -5],
+        "NH": [10, -5]
+      };
+      const [dx, dy] = offsets[d.properties.state_abbv] || [0, 0];
+      return `translate(${centroid[0] + dx}, ${centroid[1] + dy})`;
+    });
+    .attr("dy", ".35em")
+    .attr("text-anchor", "middle")
+    .text(d => d.properties.state_abbv)
+    .style("fill", "black")
+    .style("font-size", "10px")
+    .style("pointer-events", "none");
 }
 
 // Handle CSV upload
